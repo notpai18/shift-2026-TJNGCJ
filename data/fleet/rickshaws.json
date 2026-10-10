@@ -1,0 +1,117 @@
+{
+  "label": "SIMULATED — 10-rickshaw demo yard; replace with FIELD data",
+  "rickshaws": [
+    {
+      "id": "R01",
+      "driver": "Driver A",
+      "battery": "lead-acid 48V 120Ah",
+      "energy_needed_kwh": 6.0,
+      "charger_max_kw": 1.0,
+      "arrive": "19:30",
+      "depart": "06:30",
+      "midday_window": null
+    },
+    {
+      "id": "R02",
+      "driver": "Driver B",
+      "battery": "lead-acid 48V 100Ah",
+      "energy_needed_kwh": 5.0,
+      "charger_max_kw": 0.9,
+      "arrive": "20:00",
+      "depart": "06:00",
+      "midday_window": [
+        "13:00",
+        "14:30"
+      ]
+    },
+    {
+      "id": "R03",
+      "driver": "Driver C",
+      "battery": "lithium 51V 105Ah",
+      "energy_needed_kwh": 5.2,
+      "charger_max_kw": 1.5,
+      "arrive": "21:00",
+      "depart": "07:00",
+      "midday_window": null
+    },
+    {
+      "id": "R04",
+      "driver": "Driver D",
+      "battery": "lead-acid 48V 120Ah",
+      "energy_needed_kwh": 4.9,
+      "charger_max_kw": 1.2,
+      "arrive": "19:15",
+      "depart": "07:30",
+      "midday_window": [
+        "13:00",
+        "14:00"
+      ]
+    },
+    {
+      "id": "R05",
+      "driver": "Driver E",
+      "battery": "lead-acid 48V 100Ah",
+      "energy_needed_kwh": 4.6,
+      "charger_max_kw": 0.9,
+      "arrive": "19:45",
+      "depart": "06:15",
+      "midday_window": null
+    },
+    {
+      "id": "R06",
+      "driver": "Driver F",
+      "battery": "lead-acid 48V 120Ah",
+      "energy_needed_kwh": 5.6,
+      "charger_max_kw": 1.2,
+      "arrive": "21:30",
+      "depart": "07:30",
+      "midday_window": null
+    },
+    {
+      "id": "R07",
+      "driver": "Driver G",
+      "battery": "lead-acid 48V 110Ah",
+      "energy_needed_kwh": 6.0,
+      "charger_max_kw": 0.9,
+      "arrive": "21:45",
+      "depart": "07:00",
+      "midday_window": [
+        "13:00",
+        "14:00"
+      ]
+    },
+    {
+      "id": "R08",
+      "driver": "Driver H",
+      "battery": "lead-acid 48V 110Ah",
+      "energy_needed_kwh": 4.7,
+      "charger_max_kw": 1.0,
+      "arrive": "19:15",
+      "depart": "06:45",
+      "midday_window": [
+        "12:45",
+        "14:00"
+      ]
+    },
+    {
+      "id": "R09",
+      "driver": "Driver I",
+      "battery": "lead-acid 48V 110Ah",
+      "energy_needed_kwh": 6.1,
+      "charger_max_kw": 1.2,
+      "arrive": "20:45",
+      "depart": "07:30",
+      "midday_window": null
+    },
+    {
+      "id": "R10",
+      "driver": "Driver J",
+      "battery": "lead-acid 48V 100Ah",
+      "energy_needed_kwh": 5.3,
+      "charger_max_kw": 1.2,
+      "arrive": "20:00",
+      "depart": "06:45",
+      "midday_window": null
+    }
+  ]
+}

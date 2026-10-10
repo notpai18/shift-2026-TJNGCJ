@@ -1,0 +1,46 @@
+# Pragna SolarYard — every parameter is tagged SOURCE / FIELD / ASSUMPTION.
+# Replace ASSUMPTION values with FIELD data or quotes as the team collects them.
+
+site:
+  name: "Demo Yard, Lanka (SIMULATED until FIELD data entered)"
+  latitude: 25.26
+  longitude: 82.99
+  timezone: "Asia/Kolkata"
+
+time:
+  step_minutes: 15            # Δt = 0.25 h
+  horizon_start: "08:00"      # day D 08:00 → day D+1 08:00 (96 steps)
+
+tariff:                        # SOURCE F3
+  lmv11_energy_inr_per_kwh: 7.70
+  solar_hour_discount: 0.20
+  solar_hours: ["09:00", "16:00"]
+  source: "UPERC FY27 order via Power Peak Digest (F3)"
+
+grid:
+  sanctioned_load_kw: 10       # ASSUMPTION — replace with FIELD
+  allow_grid_charging_battery: false   # legal/design choice (spec §4)
+
+pv:
+  kwp: 10                      # team's proposed design
+  performance_ratio: 0.78      # ASSUMPTION (only for Open-Meteo GHI→kW, not used yet)
+  seasonal_kwh_per_kw_day:     # SOURCE F10 (profilesolar.com, Varanasi)
+    winter: 3.66               # Dec–Feb
+    spring: 6.31               # Mar–May
+    summer: 4.82               # Jun–Aug
+    autumn: 4.70               # Sep–Nov
+
+battery:                       # second-life pack
+  original_capacity_kwh: 37.5  # ASSUMPTION: pack was 37.5 kWh new
+  soh_start: 0.80              # SOURCE-consistent: EV packs retire at 70–80% (F7) → 30 kWh now
+  soc_min_frac: 0.10           # ASSUMPTION
+  soc_max_frac: 0.95           # ASSUMPTION
+  eta_charge: 0.95             # ASSUMPTION (LFP-class)
+  eta_discharge: 0.95          # ASSUMPTION → ~90% round trip
+  inverter_kw: 6               # ASSUMPTION
+  chemistry: "LFP"             # recommended for thermal safety
+  price_inr_per_kwh: 5000      # ASSUMPTION — replace with refurbisher quote
+  remaining_cycle_life_efc: 2000   # ASSUMPTION — equivalent full cycles to end of second life
+
+impact:
+  grid_emission_factor_kg_per_kwh: null   # TEAM MUST FILL from CEA CO2 Baseline Database

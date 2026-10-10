@@ -1,0 +1,12 @@
+# Team workstreams for the check-ins. Fill in `owner` with real names — the app shows
+# "Owner to be confirmed" for any blank owner rather than inventing one.
+workstreams:
+  - name: "Optimiser & battery models"
+    owner: ""
+    scope: "Wear-aware LP scheduler, thermal derating, battery health (SOH) model, tests"
+  - name: "Product & interface"
+    owner: ""
+    scope: "Streamlit app, charts, Hindi driver page for low-end phones"
+  - name: "Field evidence & sources"
+    owner: ""
+    scope: "Varanasi yard and driver interviews, data/field CSVs, citations, pitch"
