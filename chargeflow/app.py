@@ -28,7 +28,7 @@ DEFAULTS = {
     "inverter": 3.0, "trips": False, "reset_min": 30, "scenario": "solar",
     "compare": ["cmp1"], "flow_period": "cycle", "tariff": 6.5, "preset": "random", "solar_first": False,
     "lv_src": "live", "lv_noshow": "None", "lv_late": "None", "lv_late_h": 1.5, "lv_early": "None",
-    "lv_early_h": 2.0, "lv_sun": 1.0, "lv_k": live.K_NIGHT, "lv_playing": False,
+    "lv_early_h": 2.0, "lv_sun": 1.0, "lv_k": live.K_NIGHT, "lv_playing": False, "stress": False,
 }
 SUN_OPTS = {0.5: "Cloudier (−50%)", 1.0: "As forecast", 1.25: "Sunnier (+25%)"}
 NAMES = {"solar": "ChargeFlow + solar storage", "grid": "ChargeFlow, grid only",
@@ -51,16 +51,22 @@ def reset():
 
 
 def shuffle():
-    st.session_state.preset = "random"
+    st.session_state.update(preset="random", stress=False)
     st.session_state.seed = random.choice([s for s in range(1000) if s != st.session_state.seed])
 
 
 def load_field():
-    st.session_state.preset = "field"
+    st.session_state.update(preset="field", stress=False)
 
 
 def use_random():
-    st.session_state.preset = "random"
+    st.session_state.update(preset="random", stress=False)
+
+
+def stress_test():
+    """A tight night: 12 rickshaws on a 7 kW supply whose meter cuts out on overload."""
+    reset()
+    st.session_state.update(n=12, limit=7.0, trips=True, stress=True)
 
 
 def messy_night(names):
@@ -464,6 +470,22 @@ items.append(("Night load from solar", f'{ui.num("share", sol["solar_night_share
                else "if solar + storage is added"), False))
 with strip_slot:
     st.html(ui.strip(items), unsafe_allow_javascript=True)
+    if ss.stress:
+        g = sums["grid"]
+        st.html(ui.view_head("Stress test: three ways through a tight night",
+                             f"{N} rickshaws on a {limit_kw:.1f} kW supply" + (", and the meter cuts the supply on "
+                             "overload until someone resets it" if ss.trips else "") + "."))
+        st.html(ui.strip([
+            (NAMES[k], f'{sums[k]["ready"]}<small>of {N} ready</small>',
+             (f'{sums[k]["trips"]} supply cut-outs · ' if ss.trips else "")
+             + f'peak {sums[k]["peak_kw"]:.1f} kW · average {sums[k]["avg_soc_leave"] * 100:.0f}%',
+             sums[k]["ready"] < N) for k in ("uncontrolled", "grid", "solar")]), unsafe_allow_javascript=True)
+        if ss.trips:
+            st.html(f'<p class="cf-note">Plugged in uncontrolled, the chargers overload the supply '
+                    f'{u["trips"]} times, and every cut-out stops all charging for {ss.reset_min} minutes. '
+                    f'ChargeFlow keeps the supply on all night ({g["trips"]} cut-outs) and gets '
+                    f'{g["ready"]} of {N} ready from the grid alone; with solar and second-life storage adding '
+                    f'power at night, {sol["ready"]} of {N}.</p>')
 
 # ---------------------------------------------------------------- 02 analysis
 with sec2_head:
@@ -809,6 +831,8 @@ with masthead:
               key="mh_new", type="tertiary")
     st.button("Field garage", help="Load the seven renting drivers we interviewed", on_click=load_field,
               key="mh_field", type="tertiary")
+    st.button("Stress test", help="A tight night: 12 rickshaws on a 7 kW supply that cuts out on overload",
+              on_click=stress_test, key="mh_stress", type="tertiary")
     st.button("Reset", help="Reset every parameter to its default", on_click=reset,
               key="mh_reset", type="tertiary")
     st.download_button("Export CSV", schedule_df.to_csv(index=False).encode("utf-8"),

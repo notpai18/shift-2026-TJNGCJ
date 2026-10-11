@@ -428,13 +428,15 @@ CSS = """
   .cf-tlh, .cf-tlr { grid-template-columns: 96px minmax(0, 1fr) 96px; column-gap: 14px; }
   .cf-out2 { grid-template-columns: 1fr; } .cf-prog { display: none; }
 }
-@media (max-width: 640px) {
-  .stApp { --gutter: 16px; }
+@media (max-width: 1240px) {
   .cf-mast-cap { display: none; }
   .st-key-masthead { flex-wrap: wrap !important; row-gap: 2px; padding-bottom: 8px; }
   .st-key-masthead > [data-testid="stElementContainer"]:first-child { flex-basis: 100% !important; }
   .st-key-masthead .stButton button, .st-key-masthead .stDownloadButton button { padding: 4px 8px; }
   .st-key-masthead > [data-testid="stElementContainer"]:nth-child(2) .stButton button { padding-left: 0; }
+}
+@media (max-width: 640px) {
+  .stApp { --gutter: 16px; }
   .cf-fig { font-size: 72px; }
   .cf-strip > div { border-right: none; margin-right: 0; border-bottom: 1px solid var(--rule-soft); padding-bottom: 12px; }
   .stApp [role="tablist"] { gap: 18px; overflow-x: auto; }

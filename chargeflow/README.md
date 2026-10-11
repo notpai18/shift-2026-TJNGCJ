@@ -76,6 +76,7 @@ would come from metered smart plugs (for example ESP32 relays, Tasmota or Shelly
 - **Smart-plug log import** (`import_log.py`): CSV with `timestamp, vehicle, power_kw` (or `power_w`); shows the measured peak and overload, then plans the same vehicles. "Download a sample log" gives a simulated example.
 - **Solar-first charging**: vehicles that can still finish after 07:00 with a 25% margin wait for the morning sun.
 - **₹ view**: electricity tariff input and grid electricity cost per night.
+- **Stress test** (masthead button): 12 rickshaws on a 7 kW supply whose meter cuts out on overload. Uncontrolled: 0 of 12 ready after 19 cut-outs; ChargeFlow on the grid alone: 6 of 12 with no cut-outs; ChargeFlow + solar and second-life storage: 12 of 12.
 
 ## Roadmap
 
