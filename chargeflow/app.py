@@ -14,6 +14,7 @@ import charts
 import health
 import import_log
 import live
+import month
 import ui
 from charts import CONFIG, hhmm
 from scheduler import (CHARGING, END_H, FLOAT, NIGHT_H, SLOT_H, START_H, WEATHER, Battery,
@@ -29,6 +30,7 @@ DEFAULTS = {
     "compare": ["cmp1"], "flow_period": "cycle", "tariff": 6.5, "preset": "random", "solar_first": False,
     "lv_src": "live", "lv_noshow": "None", "lv_late": "None", "lv_late_h": 1.5, "lv_early": "None",
     "lv_early_h": 2.0, "lv_sun": 1.0, "lv_k": live.K_NIGHT, "lv_playing": False, "stress": False,
+    "mo_period": "recent",
 }
 SUN_OPTS = {0.5: "Cloudier (−50%)", 1.0: "As forecast", 1.25: "Sunnier (+25%)"}
 NAMES = {"solar": "ChargeFlow + solar storage", "grid": "ChargeFlow, grid only",
@@ -89,6 +91,27 @@ def toggle_play():
 @st.cache_data(ttl=1800, show_spinner="Fetching the solar forecast…")
 def forecast():
     return live.fetch_forecast(), datetime.now().strftime("%H:%M")
+
+
+@st.cache_data(ttl=86400, show_spinner="Fetching 31 days of Varanasi sunshine…")
+def _month_sun(start):
+    sun = month.fetch_sun(start, timeout=15) or month.fetch_sun(start, timeout=15)
+    if sun is None:
+        raise ConnectionError("Open-Meteo archive not reachable")   # raising keeps a failure out of the cache
+    return sun
+
+
+def month_sun(start):
+    try:
+        return _month_sun(start)
+    except ConnectionError:
+        return None
+
+
+@st.cache_data(max_entries=20, show_spinner="Simulating 30 nights…")
+def month_rows(key, _args):
+    """key is repr(_args): the fleet, batteries and storage are dataclasses, so their repr holds every field."""
+    return month.run(*_args)
 
 
 def use_import(records):
@@ -317,15 +340,16 @@ focus = ss.scenario
 with sec2:
     sec2_head = st.container()
     with st.container(key="ws"):
-        tab_load, tab_sched, tab_live = st.tabs(["`01` Load profile", "`02` Charging schedule", "`03` Live re-plan"],
-                                                key="view_main", on_change="rerun")
+        tab_load, tab_sched, tab_live, tab_month = st.tabs(
+            ["`01` Load profile", "`02` Charging schedule", "`03` Live re-plan", "`04` 30 nights"],
+            key="view_main", on_change="rerun")
 with sec3:
     sec3_head = st.container()
     with st.container(key="sup"):
         # Closed views don't render their charts (so charts always measure a visible
         # container); the fleet editor always renders because the simulation needs it.
         tab_solar, tab_soc, tab_health, tab_fleet = st.tabs(
-            ["`04` Solar and storage", "`05` Battery behaviour", "`06` Battery health", "`07` Fleet data"],
+            ["`05` Solar and storage", "`06` Battery behaviour", "`07` Battery health", "`08` Fleet data"],
             key="view_sup", on_change="rerun")
 
 with tab_fleet:
@@ -679,6 +703,71 @@ if tab_live.open:
             ("Grid electricity", f'₹{ui.num("lv_cost", d["grid_night_kwh"] * ss.tariff)}',
              f"18:00 plan blindly: ₹{f['grid_night_kwh'] * ss.tariff:,.0f}", False),
         ]), unsafe_allow_javascript=True)
+
+# ---------------------------------------------------------------- 30 nights
+if tab_month.open:
+    with tab_month:
+        ml, mr = st.columns([3, 2], vertical_alignment="bottom")
+        periods = month.periods(datetime.now().date())
+        with ml:
+            st.html(ui.view_head("30 nights in a row", "The same garage for a month: real daily sunshine for Varanasi "
+                                 "and a fleet that varies each night. About one driver in ten doesn't come, times move "
+                                 "by up to an hour, and charge on arrival varies."))
+        with mr:
+            st.segmented_control("Month", list(periods), key="mo_period", required=True, label_visibility="collapsed",
+                                 format_func=lambda p: periods[p][0], width="content")
+        label, start = periods[ss.mo_period]
+        sun_days = month_sun(start)
+        measured = sun_days is not None
+        if not measured:
+            sun_days = list(np.random.default_rng(1).uniform(2.5, 4.5, month.NIGHTS + 1).round(2))
+            st.html('<p class="cf-note"><b>Simulated sunshine:</b> the Open-Meteo archive could not be reached, so '
+                    'each day\'s sun is drawn at random between 2.5 and 4.5 kWh per kW of panels.</p>')
+        args = (fleet, batt, ss.kw_room, limit_kw, target, ss.kwp, store, ss.solar_first, ss.trips, ss.reset_min,
+                [float(v) for v in sun_days])
+        rows = month_rows(repr(args), args)
+        tot = {k: month.totals(rows, k) for k in NAMES}
+        mu, mg, msol = tot["uncontrolled"], tot["grid"], tot["solar"]
+        nn = month.NIGHTS
+        saved = (mg["grid_kwh"] - msol["grid_kwh"]) * ss.tariff
+        over_item = (("Supply cut-outs in the month", ui.num("mo_trips", msol["trips"]),
+                      f"uncontrolled: {mu['trips']} on {sum(r['uncontrolled']['trips'] > 0 for r in rows)} nights",
+                      msol["trips"] > 0) if ss.trips else
+                     ("Nights over the sanctioned load", f'{ui.num("mo_over", msol["over_nights"])}<small>of {nn}</small>',
+                      f"uncontrolled: {mu['over_nights']} nights, {mu['over_min'] / 60:.0f} h in all",
+                      msol["over_nights"] > 0))
+        st.html(ui.strip([
+            ("Nights everyone was ready", f'{ui.num("mo_all", msol["all_ready"])}<small>of {nn}</small>',
+             f"grid only: {mg['all_ready']} · uncontrolled: {mu['all_ready']}", msol["all_ready"] < nn),
+            over_item,
+            ("Grid electricity, 30 nights", f'₹{ui.num("mo_cost", msol["grid_kwh"] * ss.tariff)}',
+             f"grid only ₹{mg['grid_kwh'] * ss.tariff:,.0f} · uncontrolled ₹{mu['grid_kwh'] * ss.tariff:,.0f}", False),
+            ("Saved by solar + storage", f'₹{ui.num("mo_saved", saved)}',
+             f"{mg['grid_kwh'] - msol['grid_kwh']:,.0f} kWh less than ChargeFlow on the grid alone", False),
+            ("Night load from solar", f'{ui.num("mo_share", msol["solar_share"] * 100)}<small>%</small>',
+             f"sun {min(sun_days):.1f}–{max(sun_days):.1f} kWh per kW a day", False),
+        ]), unsafe_allow_javascript=True)
+        st.html(ui.view_head("Grid electricity per night", "What each strategy pays the grid each night; "
+                                                           "the bars below are that day's sun."))
+        mcolor, mdash = roles("solar")
+        dates = [pd.Timestamp(start) + pd.Timedelta(days=r["night"]) for r in rows]
+        st.plotly_chart(charts.month_chart(
+            dates, [(NAMES[k], mcolor[k], mdash[k], [r[k]["grid_night_kwh"] * ss.tariff for r in rows])
+                    for k in ("uncontrolled", "grid", "solar")], [r["sun"] for r in rows]),
+            key="month_chart", config=CONFIG, theme=None,
+            alt=f"Grid electricity per night over {nn} nights for the three strategies, and each day's sun.")
+        st.html(f'<p class="cf-note">{label}, starting {start:%d %b %Y}. '
+                + ("Sun is the Open-Meteo archive's daily irradiance for Varanasi × 0.78 performance ratio. "
+                   if measured else "Sun is simulated (archive not reachable). ") + 'Uncontrolled charging spends a little more on '
+                'electricity because it charges every pack to full and keeps drawing on full packs; on a supply that cuts out it also gets '
+                'fewer rickshaws ready. Turn on "Cut supply above sanctioned load" in the sidebar to count cut-outs.</p>')
+        with st.expander("Show as table"):
+            st.dataframe(pd.DataFrame([{
+                "Night of": f"{d:%a %d %b}", "Vehicles": r["vehicles"], "Sun (kWh/kW)": round(r["sun"], 1)}
+                | {f"{SHORT[k]} ready": r[k]["ready"] for k in NAMES}
+                | {f"{SHORT[k]} over limit (min)": r[k]["over_min"] for k in NAMES}
+                | {f"{SHORT[k]} grid (₹)": round(r[k]["grid_night_kwh"] * ss.tariff) for k in NAMES}
+                for d, r in zip(dates, rows)]), hide_index=True, width="stretch")
 
 # ---------------------------------------------------------------- 03 supporting analysis
 with sec3_head:

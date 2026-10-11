@@ -306,3 +306,26 @@ def replan_chart(times, k_now, done_kw, plan_kw, fixed_kw, sun_fc, sun_now, limi
     _base(fig, 420, transition_ms, top=44)
     fig.update_layout(uirevision="replan", xaxis=_axis_x(), yaxis=_axis_y(" kW", [0, top * 1.2]))
     return fig
+
+
+def month_chart(dates, series, sun, transition_ms=0):
+    """Two panels on one date axis: grid electricity per night for each strategy, and each day's sun.
+    series: (name, colour, dash, rupees per night)."""
+    fig = make_subplots(rows=2, cols=1, shared_xaxes=True, row_heights=[0.7, 0.3], vertical_spacing=0.1)
+    for name, color, dash, y in series:
+        fig.add_trace(go.Scatter(x=dates, y=y, name=name, mode="lines+markers", line=dict(color=color, width=2, dash=dash),
+                                 marker=dict(size=5, color=color), hovertemplate="₹%{y:,.0f}"), 1, 1)
+    fig.add_trace(go.Bar(x=dates, y=sun, name="Sun that day", marker_color=_rgba(SOLAR, .85), marker_line_width=0,
+                         showlegend=False, hovertemplate="%{y:.1f} kWh per kW of panels"), 2, 1)
+    top = max(max(s[3]) for s in series)
+    _base(fig, 440, transition_ms, top=44)
+    fig.update_layout(bargap=0.25, uirevision="month", hovermode="x unified")
+    xa = dict(type="date", tickformat="%d %b", hoverformat="%a %d %b", showgrid=False, showline=True, linecolor=INK,
+              ticks="outside", tickcolor=INK, ticklen=4, tickfont=dict(family=MONO, size=11, color=INK_2),
+              fixedrange=True, automargin=True)
+    fig.update_xaxes(xa)
+    fig.update_xaxes(showticklabels=False, ticks="", row=1, col=1)
+    fig.update_yaxes(_axis_y("", [0, top * 1.15]), tickprefix="₹", row=1, col=1)
+    fig.update_yaxes(_axis_y("", [0, max(5.0, max(sun) * 1.1)], dtick=2), row=2, col=1)
+    _panel_label(fig, "SUN THAT DAY · kWh PER kW OF PANELS", "y2 domain")
+    return fig
