@@ -204,6 +204,12 @@ while the drivers are out. At night the pack first covers anything the grid can'
 sanctioned load, then spreads its remaining energy across the night so it is empty again by morning.
 Usable capacity = nominal × pack health; 95% efficiency each way; never drained below 10%.
 
+**Live re-plan.** Real nights don't follow the plan, so ChargeFlow re-plans every 15 minutes from what
+it measures now (who is plugged in, each pack's charge, the storage level, the sun so far) and carries
+out only the next 15 minutes. Tomorrow's sun comes from the Open-Meteo forecast for Varanasi
+(kWp × irradiance ÷ 1000 W/m² × 0.78). From 08:00 the last hour of measured sun corrects the rest of
+the morning's forecast. A driver more than 1 h late is planned without until they plug in.
+
 **Battery model.** Constant current to 80%, then a linear taper to 15% of charger draw near full;
 80% grid-to-battery efficiency; an idle charger on a full pack still draws 5%.
 
