@@ -1,0 +1,100 @@
+
+A) 
+90km- after full charge
+10hr-battery charging time n
+lead acid is used
+8pm to 10am, 12am to 11am-charging window
+Vechicle is not drivers own, its rented - 400 - rent per day - including charging
+4 cell are used - 48000rs - changed every 2 years
+
+B)
+100km - after full charge
+3 to 4hr full charge - LPF battery (lithium iron phosphate)
+12am to 11am- battery charging time normally
+Charging 80rs
+Rent -300
+Total payed by driver- 380
+4 cell-70000rs-change every 2 years
+
+C)
+2yr old vechicle
+100km - after full charge
+8 battery dry cell (lpf)
+every 1.5yr - replace battery
+Full charge 3.5hr
+Daliy rent 400 - including charging and rent
+charging window-12am-10am or 3pm to 7pm
+
+D)lead acid cell
+8hr charging
+All nighter till 10am (12-10am)
+100km-on full charge
+400-rent+charging
+Total get 400 to 500 profit
+
+E)
+in staring 150km (when vehicle was bought) now 60km- after full charge
+lead acid cell
+Intially 12hr now 3 hr
+Charge at home
+40 to 50 rupee- for charging
+2023
+145000
+4 cell
+50000 every 2 yrs done
+Company ask every 1 year
+Drive only night get 1000
+
+f)
+100km
+400 rent
+Total 1000 600 he get
+Charge 5 -6 hr lpf only 1 cell
+All nighter 12am-11am
+3yr last battery change
+50000 replacement -owner does it
+
+g)
+120km
+400 rent
+700 revenue
+1100 total
+100 charging (300+100)
+8hr charge
+11pm to 8am
+lead acid
+4 cell
+48000rs repelcemtn (12000 for one)
+
+h)
+5yr old vehicle (not rent)
+2lakh cost- vehicle plus charge setup at home
+Lead acid cell
+4 cell
+10hr charging time
+All nighter- 11pm to 10am
+100km
+1yr garranty battery
+1.5yr normally replace
+7-8 unit daily
+70-80rs if charged at home
+
+i)
+400 rent
+lpf single cell
+5hr charging
+100km
+10pm-10am or 12am-3pm
+
+
+some points which we understood after field visit-
+-many of e rickshws are rented, and the tuk tuk owners have garages when they can charge there vehicle- 10 at a time. these garages of charging looks like small small quaters, which has small a small room where the drivers can stay also. (so exactly these garages are not some charging yards but househol, so while setting up solar, we can use pm surya garh)
+-For private tuk tuk for full charge they cahrge 100 rupees
+-we relaised the cherging system is not that decentralised, there are actually many garages or yards by tuk tuk ownners for charging in many parts of varansi.
+-some people have there own vehicle, they charge at there home, the company which made vehicle help to setup charging point at there home, the cherging thing have meter, which tell how much is spen- nomrlay 70-80rs of electricity.
+-got to know about subsidy which govt provided for e rickshaws in morning to charge.
+-on an average every driver gets 800 to 1000rs per day 
+
+Battery- lead acid
+One is 12 voltage total 48 voltage
+Charging at about 200volatge

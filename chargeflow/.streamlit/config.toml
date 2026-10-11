@@ -1,0 +1,30 @@
+[client]
+toolbarMode = "minimal"
+
+[browser]
+gatherUsageStats = false
+
+[theme]
+base = "light"
+primaryColor = "#2457D6"
+backgroundColor = "#F4F2EC"
+secondaryBackgroundColor = "#EAE7DF"
+textColor = "#171A20"
+borderColor = "#D6D2C7"
+linkColor = "#2457D6"
+redColor = "#C8412A"
+blueColor = "#2457D6"
+font = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
+headingFont = "Inter Tight:https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600&display=swap"
+codeFont = "IBM Plex Mono:https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap"
+baseFontSize = 14
+baseRadius = "4px"
+buttonRadius = "4px"
+showWidgetBorder = true
+showSidebarBorder = false
+dataframeHeaderBackgroundColor = "#EDEAE3"
+dataframeBorderColor = "#E0DCD2"
+
+[theme.sidebar]
+backgroundColor = "#ECE9E2"
+secondaryBackgroundColor = "#E3DFD6"

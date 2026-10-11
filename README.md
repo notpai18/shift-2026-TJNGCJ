@@ -57,3 +57,17 @@ Full build spec: [`docs/SPEC.md`](docs/SPEC.md). Team workstreams: [`config/team
 ## Progress log
 
 - **Sat 10 Oct, Check-in 1:** repo scaffold, LP dispatch + baseline, tests, Tonight's Plan screen.
+
+## ChargeFlow (overnight charging planner)
+
+A second build in [`chargeflow/`](chargeflow/): a Streamlit app that plans overnight charging for an e-rickshaw garage within its sanctioned load, using a Least Laxity First scheduler with lead-acid and lithium charging models.
+
+```bash
+cd chargeflow
+pip install -r requirements.txt
+streamlit run app.py
+```
+
+- **Field garage preset:** the seven renting drivers we interviewed in Varanasi (FIELD data, with assumptions labelled in the app).
+- Battery health from range, smart-plug CSV import (with a SIMULATED sample log), solar-first charging, and solar plus second-life storage scenarios.
+- Hackathon documents are in [`docs/hackathon/`](docs/hackathon/): raw field notes, Field Findings, base and projected unit economics (the projected report is a target case based on assumptions listed inside it), and the pitch deck.
