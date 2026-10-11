@@ -89,8 +89,18 @@ def toggle_play():
 
 
 @st.cache_data(ttl=1800, show_spinner="Fetching the solar forecast…")
+def _forecast():
+    fc = live.fetch_forecast() or live.fetch_forecast(timeout=12)
+    if fc is None:
+        raise ConnectionError("Open-Meteo not reachable")   # raising keeps a failure out of the cache
+    return fc, datetime.now().strftime("%H:%M")
+
+
 def forecast():
-    return live.fetch_forecast(), datetime.now().strftime("%H:%M")
+    try:
+        return _forecast()
+    except ConnectionError:
+        return None, None
 
 
 @st.cache_data(ttl=86400, show_spinner="Fetching 31 days of Varanasi sunshine…")
@@ -474,10 +484,14 @@ with figs[1]:
 ref, ref_name = (u, "uncontrolled") if focus != "uncontrolled" else (sol, "ChargeFlow + solar")
 avg = s["avg_soc_leave"] * 100
 dpeak = s["peak_kw"] - ref["peak_kw"]
+# While the supply is cut nothing draws power, so a strategy that keeps tripping the meter shows little
+# time over the limit and a small bill. Say so wherever that number is quoted.
+cut = (f", but only because the supply cut out {ref['trips']} times and its chargers sat off"
+       if ss.trips and ref["trips"] else "")
 items = [
     ("Average charge at departure", f'{ui.num("avg", avg)}<small>%</small>', f"target {target_pct}%",
      avg < target_pct - 0.5),
-    ("Time over sanctioned load", ui.fmt_min(s["over_min"]), f"{ref_name}: {ui.fmt_min(ref['over_min'])}",
+    ("Time over sanctioned load", ui.fmt_min(s["over_min"]), f"{ref_name}: {ui.fmt_min(ref['over_min'])}{cut}",
      s["over_min"] > 0),
     (f"Peak vs {ref_name}", f'{"−" if dpeak < 0 else "+"}{ui.num("dpeak", abs(dpeak), 1)}<small>kW</small>',
      f"{ref['peak_kw']:.1f} → {s['peak_kw']:.1f} kW", False),
@@ -486,7 +500,8 @@ items = [
 ]
 cost, ref_cost = s["grid_night_kwh"] * ss.tariff, ref["grid_night_kwh"] * ss.tariff
 items.append(("Grid electricity tonight", f'₹{ui.num("cost", cost)}',
-              f"₹{cost / N:.0f} a vehicle · {ref_name}: ₹{ref_cost:,.0f} · about ₹{cost * 30:,.0f} a month", False))
+              f"₹{cost / N:.0f} a vehicle · {ref_name}: ₹{ref_cost:,.0f}{cut} · about ₹{cost * 30:,.0f} a month",
+              False))
 if ss.trips:
     items.append(("Supply cut-outs", ui.num("trips_n", s["trips"]), f"{ref_name}: {ref['trips']}", s["trips"] > 0))
 items.append(("Night load from solar", f'{ui.num("share", sol["solar_night_share"] * 100)}<small>%</small>',
