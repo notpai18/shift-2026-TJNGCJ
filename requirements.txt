@@ -3,5 +3,5 @@ pulp==3.3.2
 pandas==2.3.3
 numpy==2.2.6
 plotly==7.1.0
-pyyaml==5.4.1
+pyyaml==6.0.2
 pytest==6.2.5

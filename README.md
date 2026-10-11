@@ -4,6 +4,8 @@
 
 SHIFT Sustainable e-Micromobility Hackathon · IIT (BHU) Varanasi · 10–11 October 2026
 
+**Team-error:** Aryan V Nair, Pranav R Pai, Sreenandh Sudheesh
+
 ChargeFlow decides when each e-rickshaw charger switches on overnight. It keeps the garage within its sanctioned electricity load, makes sure every rickshaw is charged before its driver leaves, and uses rooftop solar with a second-life battery to cover part of the night's power.
 
 > **Submission status:** a working prototype. The planner, dashboard and simulations run; the hardware pilot has not started. All fleet results are **simulated** and labelled as such in the app.
