@@ -96,6 +96,11 @@ class Rickshaw:
     leave_h: float
     soc_arrive: float   # 0..1
     battery: object = None   # this vehicle's Battery; None = the shared default
+    due_h: float = None      # departure the controller plans for; None = leave_h. Differs when a driver leaves early.
+
+    @property
+    def due(self):
+        return self.leave_h if self.due_h is None else self.due_h
 
 
 @dataclass
@@ -146,13 +151,17 @@ def solar_kw(times, kwp, weather=1.0, yield_kwh_per_kwp=4.0):
 
 
 def _run(fleet, batt, base_kw, limit_kw, decide, trips, reset_min, solar=None, storage=None,
-         grid_cap_kw=None):
+         grid_cap_kw=None, start_k=0, soc0=None, energy0=None):
     """Step through the day slot by slot.
 
     Storage dispatch: first cover whatever the grid can't (import above
     grid_cap_kw), then spread the remaining stored energy evenly over what is
     left of the night, so the pack is still there when most rickshaws are
     plugged in and is empty again by morning for the next day's sun.
+
+    start_k, soc0 and energy0 start the run mid-way from a measured state (a re-plan):
+    soc0 holds each vehicle's charge now (nan = use soc_arrive), energy0 the pack's energy.
+    Slots before start_k are left at zero.
     """
     times = slot_times()
     bat = [r.battery or batt for r in fleet]
@@ -162,17 +171,22 @@ def _run(fleet, batt, base_kw, limit_kw, decide, trips, reset_min, solar=None, s
     state = np.zeros((n, T), int)
     soc_hist = np.full((n, T), np.nan)
     soc = np.array([r.soc_arrive for r in fleet], float)
+    if soc0 is not None:
+        soc0 = np.asarray(soc0, float)
+        soc = np.where(np.isnan(soc0), soc, soc0)
     ev, demand, grid_try, load = (np.zeros(T) for _ in range(4))
     store_kw, store_kwh, export = (np.zeros(T) for _ in range(3))
     trip_slots, off_until = [], -1
     reset_slots = max(1, round(reset_min / (SLOT_H * 60)))
     if storage:
         e_min, e_max = storage.usable_kwh * storage.min_frac, storage.usable_kwh
-        energy = e_min   # starts the morning empty after last night
+        energy = e_min if energy0 is None else min(max(energy0, e_min), e_max)   # empty after last night
     else:
         e_min = e_max = energy = 0.0
 
     for k, t in enumerate(times):
+        if k < start_k:
+            continue
         present = [i for i, r in enumerate(fleet) if r.arrive_h <= t < r.leave_h]
         soc_hist[present, k] = soc[present]
         can_discharge = 0.0
@@ -239,7 +253,8 @@ def simulate_uncontrolled(fleet, batt, base_kw, limit_kw, trips=False, reset_min
 
 
 def simulate_smart(fleet, batt, base_kw, limit_kw, target=1.0, headroom=0.95,
-                   trips=False, reset_min=30, solar=None, storage=None, solar_first=False):
+                   trips=False, reset_min=30, solar=None, storage=None, solar_first=False,
+                   sun_factor=1.0, start_k=0, soc0=None, energy0=None):
     """Least Laxity First with on/off chargers under the sanctioned load.
 
     laxity = time left before departure - charging time still needed.
@@ -251,6 +266,11 @@ def simulate_smart(fleet, batt, base_kw, limit_kw, target=1.0, headroom=0.95,
 
     With solar and storage, the power they can supply this slot is added to the
     headroom, so the grid import still stays under the sanctioned load.
+
+    sun_factor is tomorrow morning's forecast sun against a clear day: solar-first
+    waits less as the forecast gets cloudier, and not at all below 0.4.
+    Laxity uses each vehicle's planned departure (due), which is all the
+    controller knows until the driver actually unplugs.
     """
     n = len(fleet)
     bat = [r.battery or batt for r in fleet]
@@ -266,9 +286,10 @@ def simulate_smart(fleet, batt, base_kw, limit_kw, target=1.0, headroom=0.95,
                 need = bat[i].hours_to(soc[i], target)
                 # Solar-first: before the morning sun, a vehicle that can still finish with a
                 # 25% margin between 07:00 and departure waits, so its energy comes from solar.
-                if solar_first and t < SUN_H and need <= 0.75 * (fleet[i].leave_h - SUN_H):
+                if (solar_first and sun_factor >= 0.4 and t < SUN_H
+                        and need <= 0.75 * min(sun_factor, 1.0) * (fleet[i].due - SUN_H)):
                     continue
-                laxity = (fleet[i].leave_h - t) - need
+                laxity = (fleet[i].due - t) - need
                 queue.append((laxity, i))
         for _, i in sorted(queue, key=lambda q: (q[0] < 0, q[0])):
             kw = bat[i].charge_kw(soc[i])
@@ -278,7 +299,7 @@ def simulate_smart(fleet, batt, base_kw, limit_kw, target=1.0, headroom=0.95,
         return draws, st
 
     return _run(fleet, batt, base_kw, limit_kw, decide, trips, reset_min, solar, storage,
-                grid_cap_kw=limit_kw * headroom)
+                grid_cap_kw=limit_kw * headroom, start_k=start_k, soc0=soc0, energy0=energy0)
 
 
 def summarize(res, limit_kw, target):

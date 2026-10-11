@@ -85,11 +85,20 @@ window.CF = window.CF || (function () {
       root.querySelectorAll('[data-anim]').forEach(prop);
     }
   }
+  // Switching a view re-runs the app, and for a moment the old content is cleared, so the page gets
+  // shorter and the browser clamps the scroll position (a jump up). Keep the page at the tallest height seen.
+  const bump = () => {
+    const el = document.querySelector('[data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"]'); if (!el) return;
+    const h = Math.ceil(el.getBoundingClientRect().height);
+    if (h > (window.__cfMax || 0)) { window.__cfMax = h; document.documentElement.style.setProperty('--cf-page-min', h + 'px'); }
+  };
+  const ro = new ResizeObserver(bump); let watched = null;
+  const watch = () => { const el = document.querySelector('[data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"]'); if (el && el !== watched) { ro.disconnect(); ro.observe(el); watched = el; bump(); } };
   let queued = false;
   new MutationObserver(() => {
     if (queued) return;
     queued = true;
-    requestAnimationFrame(() => { queued = false; sync(); });
+    requestAnimationFrame(() => { queued = false; sync(); watch(); });
   }).observe(document.body, {childList: true, subtree: true});
   return {block(id, version, inject) { blocks[id] = {version, inject: inject || {}}; sync(); }};
 })();
@@ -151,6 +160,7 @@ CSS = """
 }
 [data-testid="stExpandSidebarButton"]:hover { background: var(--paper-2) !important; }
 [data-testid="stMainBlockContainer"] { padding: 0 var(--gutter) 96px; max-width: 1640px; }
+[data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] { min-height: var(--cf-page-min, 0px); }
 .stApp button:focus-visible, .stApp input:focus-visible, .stApp [role="tab"]:focus-visible,
 .stApp [role="radio"]:focus-visible, .stApp a:focus-visible {
   outline: 2px solid var(--cobalt) !important; outline-offset: 2px;
@@ -296,31 +306,64 @@ CSS = """
 [data-testid="stExpander"] summary p { font: 500 13px var(--sans); color: var(--ink-2); }
 [data-testid="stExpander"] summary:hover p { color: var(--cobalt); }
 
-/* ---------- sidebar: subordinate instrument panel */
-[data-testid="stSidebar"] { box-shadow: inset -1px 0 0 var(--rule); }
-[data-testid="stSidebar"][aria-expanded="true"] { min-width: 292px !important; max-width: 292px !important; }
-[data-testid="stSidebarUserContent"] { padding: 2px 22px 48px; }
-.cf-side { font: 600 13px/18px var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--ink);
-  padding-bottom: 12px; border-bottom: 1px solid var(--ink); }
-.cf-side span { display: block; font: 400 12px/17px var(--sans); letter-spacing: 0; text-transform: none; color: var(--ink-3); margin-top: 4px; }
-.cf-grp { display: flex; gap: 10px; align-items: baseline; margin: 22px 0 2px; font: 500 11px/16px var(--mono);
-  letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); }
-.cf-grp span { color: var(--cobalt); }
-[data-testid="stSidebar"] [data-testid="stWidgetLabel"] p { font: 400 13px/18px var(--sans); color: var(--ink-2); }
+/* ---------- sidebar: control panel */
+[data-testid="stSidebar"] {
+  background: linear-gradient(180deg, #F2EFE8 0%, #EAE6DD 100%) !important;
+  box-shadow: inset -1px 0 0 rgba(23,26,32,.10), 10px 0 30px -24px rgba(23,26,32,.35);
+}
+[data-testid="stSidebarContent"] { background: transparent; scrollbar-width: thin; scrollbar-color: rgba(23,26,32,.18) transparent; }
+[data-testid="stSidebar"][aria-expanded="true"] { min-width: 304px !important; max-width: 304px !important; }
+[data-testid="stSidebarUserContent"] { padding: 0 18px 48px; }
+.cf-side { position: relative; padding: 2px 4px 18px; font-family: var(--sans); }
+.cf-side i { display: block; font: 500 10.5px/14px var(--mono); font-style: normal; letter-spacing: .14em; color: var(--cobalt); }
+.cf-side b { display: block; font: 600 26px/30px var(--display); letter-spacing: -.025em; color: var(--ink); margin-top: 6px; }
+.cf-side span { display: block; font: 400 12.5px/18px var(--sans); color: var(--ink-3); margin-top: 4px; }
+.cf-side::after { content: ""; position: absolute; left: 4px; bottom: 0; width: 36px; height: 3px; border-radius: 2px; background: var(--cobalt); }
+[data-testid="stSidebar"] [class*="st-key-sg_"] {
+  background: rgba(255,255,255,.78); border: 1px solid rgba(23,26,32,.07); border-radius: 14px;
+  padding: 14px 14px 8px; margin-top: 14px;
+  box-shadow: 0 1px 1px rgba(23,26,32,.03), 0 10px 26px -18px rgba(23,26,32,.28);
+  transition: box-shadow .25s var(--ease), border-color .25s var(--ease);
+}
+[data-testid="stSidebar"] [class*="st-key-sg_"]:hover { border-color: rgba(36,87,214,.18); box-shadow: 0 1px 1px rgba(23,26,32,.03), 0 14px 30px -18px rgba(36,87,214,.30); }
+.cf-grp { display: flex; gap: 10px; align-items: center; margin: 0 0 4px; font: 600 12.5px/18px var(--display);
+  letter-spacing: .09em; text-transform: uppercase; color: var(--ink); }
+.cf-grp span { display: inline-flex; align-items: center; justify-content: center; min-width: 26px; height: 20px; padding: 0 6px;
+  border-radius: 6px; background: var(--cobalt-wash); color: var(--cobalt-ink); font: 500 10.5px/1 var(--mono); letter-spacing: .04em; }
+[data-testid="stSidebar"] [data-testid="stWidgetLabel"] p { font: 500 13px/18px var(--sans); color: #2B2F36; letter-spacing: -.005em; }
+[data-testid="stSidebar"] [data-testid="stWidgetLabel"] [data-testid="stTooltipIcon"] { opacity: .55; transition: opacity .15s var(--ease); }
+[data-testid="stSidebar"] [data-testid="stWidgetLabel"] [data-testid="stTooltipIcon"]:hover { opacity: 1; }
 [data-testid="stSliderThumbValue"] p { font: 500 11.5px/16px var(--mono) !important; color: var(--ink) !important; }
+[data-testid="stSidebar"] [data-testid="stSliderThumbValue"] {
+  background: var(--ink); border-radius: 5px; padding: 1px 7px; box-shadow: 0 2px 6px -2px rgba(23,26,32,.45);
+}
+[data-testid="stSidebar"] [data-testid="stSliderThumbValue"] p { color: #F4F2EC !important; font-size: 11px !important; }
 [data-testid="stSliderTickBarMin"] p, [data-testid="stSliderTickBarMax"] p, [data-testid="stSliderTickBar"] p {
   font: 400 10.5px var(--mono) !important; color: var(--ink-3) !important; }
 [data-testid="stSlider"] [role="group"] > div > div[style*="left"]:not([data-testid]) {
+  background: #FFFFFF !important; border: 2px solid var(--cobalt) !important; width: 16px !important; height: 16px !important;
+  box-shadow: 0 1px 3px rgba(23,26,32,.28);
   transition: box-shadow .18s var(--ease), scale .18s var(--ease);
 }
-[data-testid="stSlider"] [role="group"] > div > div[style*="left"]:not([data-testid]):hover { box-shadow: 0 0 0 6px rgba(36,87,214,.12); }
-[data-testid="stSlider"] [role="group"] > div > div[style*="left"]:not([data-testid]):active { scale: 1.12; }
+[data-testid="stSlider"] [role="group"] > div > div[style*="left"]:not([data-testid]):hover { box-shadow: 0 0 0 6px rgba(36,87,214,.14), 0 1px 3px rgba(23,26,32,.28); }
+[data-testid="stSlider"] [role="group"] > div > div[style*="left"]:not([data-testid]):active { scale: 1.15; }
 [data-testid="stSlider"] [role="group"] > div > div[style*="left"]:has(input:focus-visible) {
-  box-shadow: 0 0 0 3px var(--paper-2), 0 0 0 5px var(--cobalt);
+  box-shadow: 0 0 0 3px #FFFFFF, 0 0 0 5px var(--cobalt);
 }
 [data-testid="stNumberInput"] input { font-family: var(--mono); font-size: 13px; }
-[data-testid="stSidebar"] [data-variant="segmented_control"] { min-height: 32px; padding: 0 11px; }
-[data-testid="stSidebar"] [data-variant="segmented_control"] p { font-size: 12.5px; }
+[data-testid="stSidebar"] [data-variant="segmented_control"] { min-height: 32px; padding: 0 8px; }
+[data-testid="stSidebar"] [data-variant="segmented_control"] p { font-size: 12px; }
+[data-testid="stSidebar"] [role="radiogroup"] { flex-wrap: nowrap; }
+[data-testid="stSidebar"] [data-testid="stSlider"] [role="group"] { padding-top: 8px; }
+[data-testid="stSidebar"] .stButton button {
+  background: var(--ink) !important; color: #F4F2EC !important; opacity: 1 !important; border: none !important;
+  border-radius: 9px; min-height: 38px;
+  box-shadow: 0 6px 14px -8px rgba(23,26,32,.55);
+  transition: background-color .18s var(--ease), box-shadow .18s var(--ease), transform .12s var(--ease);
+}
+[data-testid="stSidebar"] .stButton button p { font: 500 13px/18px var(--sans); color: inherit; }
+[data-testid="stSidebar"] .stButton button:hover { background: var(--cobalt) !important; color: #FFFFFF !important; box-shadow: 0 8px 18px -8px rgba(36,87,214,.6); }
+[data-testid="stSidebar"] .cf-note { font-size: 12.5px; line-height: 18px; color: var(--ink-2); }
 
 /* ---------- charging schedule */
 .cf-tl { font-family: var(--sans); color: var(--ink); }
@@ -429,7 +472,7 @@ def masthead(caption):
 
 
 def side_head():
-    return '<div class="cf-side">Parameters<span>Every change re-plans the night.</span></div>'
+    return '<div class="cf-side"><i>CONTROL PANEL</i><b>Parameters</b><span>Every change re-plans the night instantly.</span></div>'
 
 
 def group(number, title):

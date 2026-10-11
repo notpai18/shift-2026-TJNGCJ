@@ -4,7 +4,7 @@ Run with:  streamlit run app.py
 """
 import copy
 import random
-from datetime import time
+from datetime import datetime, time
 
 import numpy as np
 import pandas as pd
@@ -13,6 +13,7 @@ import streamlit as st
 import charts
 import health
 import import_log
+import live
 import ui
 from charts import CONFIG, hhmm
 from scheduler import (CHARGING, END_H, FLOAT, NIGHT_H, SLOT_H, START_H, WEATHER, Battery,
@@ -26,7 +27,10 @@ DEFAULTS = {
     "target": 95, "kwp": 5.0, "weather": "Clear sky", "nominal": 15.0, "health": 75,
     "inverter": 3.0, "trips": False, "reset_min": 30, "scenario": "solar",
     "compare": ["cmp1"], "flow_period": "cycle", "tariff": 6.5, "preset": "random", "solar_first": False,
+    "lv_src": "live", "lv_noshow": "None", "lv_late": "None", "lv_late_h": 1.5, "lv_early": "None",
+    "lv_early_h": 2.0, "lv_sun": 1.0, "lv_k": live.K_NIGHT, "lv_playing": False,
 }
+SUN_OPTS = {0.5: "Cloudier (−50%)", 1.0: "As forecast", 1.25: "Sunnier (+25%)"}
 NAMES = {"solar": "ChargeFlow + solar storage", "grid": "ChargeFlow, grid only",
          "uncontrolled": "Uncontrolled plug-in"}
 SHORT = {"solar": "ChargeFlow + solar", "grid": "Grid only", "uncontrolled": "Uncontrolled"}
@@ -57,6 +61,28 @@ def load_field():
 
 def use_random():
     st.session_state.preset = "random"
+
+
+def messy_night(names):
+    pick = lambda i: names[i % len(names)]
+    st.session_state.update(lv_noshow=pick(1), lv_late=pick(3), lv_early=pick(0), lv_sun=0.5,
+                            lv_k=live.K_NIGHT, lv_playing=True)
+
+
+def calm_night():
+    st.session_state.update(lv_noshow="None", lv_late="None", lv_early="None", lv_sun=1.0, lv_playing=False)
+
+
+def toggle_play():
+    ss_ = st.session_state
+    ss_.lv_playing = not ss_.lv_playing
+    if ss_.lv_playing and ss_.lv_k >= len(slot_times()):
+        ss_.lv_k = live.K_NIGHT
+
+
+@st.cache_data(ttl=1800, show_spinner="Fetching the solar forecast…")
+def forecast():
+    return live.fetch_forecast(), datetime.now().strftime("%H:%M")
 
 
 def use_import(records):
@@ -206,48 +232,53 @@ def tms(chart):
 # ---------------------------------------------------------------- sidebar: parameters
 with st.sidebar:
     st.html(ui.side_head())
-    st.html(ui.group("01", "Fleet"))
-    preset = st.session_state.preset if (st.session_state.preset != "import" or st.session_state.get("imported")) else "random"
-    field = preset != "random"
-    if field:
-        st.html('<p class="cf-note">' + ('Showing the <b>field garage</b>: the seven renting drivers we met '
-                                         '(A, B, C, D, F, G, I).' if preset == "field" else
-                                         'Showing the vehicles from your <b>imported smart-plug log</b>.') + '</p>')
-        st.button("Back to a random night", on_click=use_random, key="sb_random", width="stretch")
-    else:
-        st.button("Load field garage (our 7 drivers)", on_click=load_field, key="sb_field", width="stretch",
-                  help="Replaces the random fleet with the drivers we interviewed in Varanasi.")
-    st.number_input("Rickshaws", 1, 30, step=1, key="n", disabled=field, help="E-rickshaws charging at the quarters tonight.")
-    st.slider("Evening load per room", 0.0, 0.5, step=0.05, format="%.2f kW", key="kw_room",
-              help="Lights, fans, phone charging. Lower overnight and while drivers are out.")
-    st.number_input("Night", 0, 999, step=1, key="seed", disabled=field,
-                    help="Each number generates a different random night of arrivals, departures and charge levels.")
-    st.html(ui.group("02", "Building supply"))
-    st.slider("Sanctioned load", 2.0, 20.0, step=0.5, format="%.1f kW", key="limit",
-              help="The building's contracted supply limit.")
-    st.slider("Electricity tariff", 3.0, 12.0, step=0.1, format="₹%.1f/kWh", key="tariff",
-              help="UPERC FY 2026-27: domestic average about ₹5.8, EV charging (LMV-11) ₹7.7, non-domestic average about ₹9.9.")
-    st.html(ui.group("03", "Battery and charger"))
-    st.slider("Pack size", 3.0, 10.0, step=0.1, format="%.1f kWh", key="capacity", help="48 V x 120 Ah ≈ 5.8 kWh")
-    st.slider("Charger draw", 0.3, 2.0, step=0.05, format="%.2f kW", key="charger")
-    st.slider("Ready when charged to", 70, 100, step=5, format="%d%%", key="target")
-    st.html(ui.group("04", "Solar and second-life storage"))
-    st.slider("Solar panels", 1.0, 20.0, step=0.5, format="%.1f kW", key="kwp",
-              help="Needs about 6.5 m² of roof per kW. About 4 kWh per kW on a clear day.")
-    st.segmented_control("Weather today", list(WEATHER), key="weather", required=True,
-                         format_func=lambda w: {"Clear sky": "Clear", "Hazy": "Hazy", "Monsoon cloud": "Monsoon"}[w])
-    st.slider("Pack capacity, nominal", 5.0, 40.0, step=2.5, format="%.1f kWh", key="nominal")
-    st.slider("Pack health", 50, 100, step=5, format="%d%%", key="health",
-              help="Packs retired from EVs typically keep 70-80% of their original capacity.")
-    st.slider("Inverter power", 1.0, 10.0, step=0.5, format="%.1f kW", key="inverter")
-    st.toggle("Solar-first charging", key="solar_first",
-              help="Vehicles that can still finish after 07:00 wait for the morning sun instead of charging from the "
-                   "grid at night. Applies to ChargeFlow + solar storage. Suits lithium packs that leave at 10–11 am.")
-    st.html(ui.group("05", "Supply cut-outs"))
-    st.toggle("Cut supply above sanctioned load", key="trips",
-              help="Models a meter or MCB that disconnects the building on overload.")
-    st.slider("Reset after", 15, 120, step=15, format="%d min", key="reset_min", disabled=not st.session_state.trips,
-              help="How long until someone resets the supply.")
+    with st.container(key="sg_1"):
+        st.html(ui.group("01", "Fleet"))
+        preset = st.session_state.preset if (st.session_state.preset != "import" or st.session_state.get("imported")) else "random"
+        field = preset != "random"
+        if field:
+            st.html('<p class="cf-note">' + ('Showing the <b>field garage</b>: the seven renting drivers we met '
+                                             '(A, B, C, D, F, G, I).' if preset == "field" else
+                                             'Showing the vehicles from your <b>imported smart-plug log</b>.') + '</p>')
+            st.button("Back to a random night", on_click=use_random, key="sb_random", width="stretch")
+        else:
+            st.button("Load our field garage", on_click=load_field, key="sb_field", width="stretch",
+                      help="Replaces the random fleet with the drivers we interviewed in Varanasi.")
+        st.number_input("Rickshaws", 1, 30, step=1, key="n", disabled=field, help="E-rickshaws charging at the quarters tonight.")
+        st.slider("Evening load per room", 0.0, 0.5, step=0.05, format="%.2f kW", key="kw_room",
+                  help="Lights, fans, phone charging. Lower overnight and while drivers are out.")
+        st.number_input("Night", 0, 999, step=1, key="seed", disabled=field,
+                        help="Each number generates a different random night of arrivals, departures and charge levels.")
+    with st.container(key="sg_2"):
+        st.html(ui.group("02", "Building supply"))
+        st.slider("Sanctioned load", 2.0, 20.0, step=0.5, format="%.1f kW", key="limit",
+                  help="The building's contracted supply limit.")
+        st.slider("Electricity tariff", 3.0, 12.0, step=0.1, format="₹%.1f/kWh", key="tariff",
+                  help="UPERC FY 2026-27: domestic average about ₹5.8, EV charging (LMV-11) ₹7.7, non-domestic average about ₹9.9.")
+    with st.container(key="sg_3"):
+        st.html(ui.group("03", "Battery and charger"))
+        st.slider("Pack size", 3.0, 10.0, step=0.1, format="%.1f kWh", key="capacity", help="48 V x 120 Ah ≈ 5.8 kWh")
+        st.slider("Charger draw", 0.3, 2.0, step=0.05, format="%.2f kW", key="charger")
+        st.slider("Ready when charged to", 70, 100, step=5, format="%d%%", key="target")
+    with st.container(key="sg_4"):
+        st.html(ui.group("04", "Solar and second-life storage"))
+        st.slider("Solar panels", 1.0, 20.0, step=0.5, format="%.1f kW", key="kwp",
+                  help="Needs about 6.5 m² of roof per kW. About 4 kWh per kW on a clear day.")
+        st.segmented_control("Weather today", list(WEATHER), key="weather", required=True,
+                             format_func=lambda w: {"Clear sky": "Clear", "Hazy": "Hazy", "Monsoon cloud": "Monsoon"}[w])
+        st.slider("Pack capacity, nominal", 5.0, 40.0, step=2.5, format="%.1f kWh", key="nominal")
+        st.slider("Pack health", 50, 100, step=5, format="%d%%", key="health",
+                  help="Packs retired from EVs typically keep 70-80% of their original capacity.")
+        st.slider("Inverter power", 1.0, 10.0, step=0.5, format="%.1f kW", key="inverter")
+        st.toggle("Solar-first charging", key="solar_first",
+                  help="Vehicles that can still finish after 07:00 wait for the morning sun instead of charging from the "
+                       "grid at night. Applies to ChargeFlow + solar storage. Suits lithium packs that leave at 10–11 am.")
+    with st.container(key="sg_5"):
+        st.html(ui.group("05", "Supply cut-outs"))
+        st.toggle("Cut supply above sanctioned load", key="trips",
+                  help="Models a meter or MCB that disconnects the building on overload.")
+        st.slider("Reset after", 15, 120, step=15, format="%d min", key="reset_min", disabled=not st.session_state.trips,
+                  help="How long until someone resets the supply.")
 
 ss = st.session_state
 n, seed, limit_kw, target_pct = ss.n, ss.seed, ss.limit, ss.target
@@ -274,15 +305,15 @@ focus = ss.scenario
 with sec2:
     sec2_head = st.container()
     with st.container(key="ws"):
-        tab_load, tab_sched = st.tabs(["`01` Load profile", "`02` Charging schedule"], key="view_main",
-                                      on_change="rerun")
+        tab_load, tab_sched, tab_live = st.tabs(["`01` Load profile", "`02` Charging schedule", "`03` Live re-plan"],
+                                                key="view_main", on_change="rerun")
 with sec3:
     sec3_head = st.container()
     with st.container(key="sup"):
         # Closed views don't render their charts (so charts always measure a visible
         # container); the fleet editor always renders because the simulation needs it.
         tab_solar, tab_soc, tab_health, tab_fleet = st.tabs(
-            ["`03` Solar and storage", "`04` Battery behaviour", "`05` Battery health", "`06` Fleet data"],
+            ["`04` Solar and storage", "`05` Battery behaviour", "`06` Battery health", "`07` Fleet data"],
             key="view_sup", on_change="rerun")
 
 with tab_fleet:
@@ -506,6 +537,120 @@ if tab_sched.open:
                             ["18:00", "21:00", "00:00", "03:00", "06:00", "09:00", "12:00"]), unsafe_allow_javascript=True)
         with st.expander("Show as table"):
             st.dataframe(schedule_df, hide_index=True, width="stretch")
+
+# ---------------------------------------------------------------- live re-plan
+T = len(times)
+
+
+@st.fragment(run_every=0.7 if ss.lv_playing else None)
+def live_clock(night):
+    if ss.lv_playing:
+        if ss.lv_k >= T:
+            ss.lv_playing = False
+            st.rerun(scope="app")
+        ss.lv_k = min(ss.lv_k + 2, T)
+    st.select_slider("Clock", list(range(live.K_NIGHT, T + 1)), key="lv_k", label_visibility="collapsed",
+                     format_func=lambda k: hhmm(times[k]) if k < T else "12:00 · night over")
+    k = ss.lv_k
+    t = times[k] if k < T else END_H
+    if k < T:
+        plan, ready, n_exp, ratio = night.plan_at(k)
+    else:
+        plan, ratio = None, live.sun_belief(night.fc_kw, night.act_kw, times, T - 1)[1]
+        ready, n_exp = night.outcome(night.done)["ready"], len(night.came)
+    here = sum(x.arrive_h <= t < x.leave_h for x in night.actual)
+    peak = float(night.done.grid_try_kw[live.K_NIGHT:k].max()) if k > live.K_NIGHT else 0.0
+    triggered = sum(1 for e in night.log[1:] if e[0] <= k)
+    st.html(ui.strip([
+        ("Clock", hhmm(t), f"{k - live.K_NIGHT} re-plans since 18:00 · {triggered} after a surprise", False),
+        ("Plugged in now", ui.num("lv_here", here), f"{n_exp} expected tonight", False),
+        ("Ready at departure" + (", current plan" if k < T else ""), f"{ready}<small>of {n_exp}</small>",
+         "if nothing else changes" if k < T else "final", ready < n_exp),
+        ("Peak so far", f'{ui.num("lv_peak", peak, 1)}<small>kW</small>', f"sanctioned {limit_kw:.1f} kW",
+         peak > limit_kw),
+        ("Sun vs forecast", f"{ratio * 100:.0f}<small>%</small>" if ratio is not None else "–",
+         "measured ÷ forecast, last hour" if ratio is not None else "no sun to measure yet", False),
+    ]), unsafe_allow_javascript=True)
+    st.plotly_chart(charts.replan_chart(times, k, night.done.load_kw, plan.load_kw if plan else None,
+                                        night.fixed.load_kw, night.fc_kw, night.act_kw, limit_kw),
+                    key="replan_chart", config=CONFIG, theme=None,
+                    alt=f"Grid import up to {hhmm(t)} and the plan from then on, against the sanctioned load.")
+    st.html(ui.view_head("Re-plan log", "Changes the controller has seen by now. It re-plans every 15 minutes "
+                                        "regardless; these are the re-plans a surprise triggered."))
+    st.dataframe(pd.DataFrame([{"Time": hhmm(times[e[0]]), "What changed": e[1],
+                                "Plan after re-planning": f"{e[2]} of {e[3]} ready · peak ahead {e[4]:.1f} kW"}
+                               for e in night.log if e[0] <= k]), hide_index=True, width="stretch")
+
+
+if tab_live.open:
+    with tab_live:
+        st.html(ui.view_head("Live re-plan", "Tonight as it really happens. Every 15 minutes ChargeFlow re-plans the "
+                                             "rest of the night from what it measures: who is plugged in, each pack's "
+                                             "charge, the storage level and the sun so far. Add surprises, then play "
+                                             "the night."))
+        opts = ["None"] + names
+        for key in ("lv_noshow", "lv_late", "lv_early"):
+            if ss[key] not in opts:
+                ss[key] = "None"
+        c1, c2, c3, c4 = st.columns([1.2, 1.5, 0.8, 0.8], vertical_alignment="bottom")
+        with c1:
+            st.segmented_control("Solar forecast", ["live", "sidebar"], key="lv_src", required=True,
+                                 format_func={"live": "Open-Meteo, live", "sidebar": "Sidebar weather"}.get)
+        with c2:
+            st.segmented_control("Tomorrow morning's real sun", list(SUN_OPTS), key="lv_sun", required=True,
+                                 format_func=SUN_OPTS.get)
+        with c3:
+            st.button("Pause" if ss.lv_playing else "Play the night", on_click=toggle_play, key="lv_play",
+                      type="primary", width="stretch", icon=":material/pause:" if ss.lv_playing else ":material/play_arrow:")
+        with c4:
+            st.button("Messy night", on_click=messy_night, args=(names,), key="lv_messy", width="stretch",
+                      help="One no-show, one driver late, one leaving early and a cloudier morning than forecast.")
+        c1, c2, c3, c4, c5 = st.columns(5, vertical_alignment="bottom")
+        with c1:
+            st.selectbox("Doesn't come", opts, key="lv_noshow")
+        with c2:
+            st.selectbox("Arrives late", opts, key="lv_late")
+        with c3:
+            st.select_slider("Late by", [0.5, 1.0, 1.5, 2.0, 3.0], key="lv_late_h", format_func=live.fmt_h,
+                             disabled=ss.lv_late == "None")
+        with c4:
+            st.selectbox("Leaves early", opts, key="lv_early")
+        with c5:
+            st.select_slider("Early by", [0.5, 1.0, 2.0, 3.0, 4.0], key="lv_early_h", format_func=live.fmt_h,
+                             disabled=ss.lv_early == "None")
+
+        fc, fetched = forecast() if ss.lv_src == "live" else (None, None)
+        if fc:
+            fc_kw = live.forecast_kw(fc, times, ss.kwp)
+            src_note = (f"<b>Forecast:</b> Open-Meteo for Varanasi (25.32° N, 82.99° E), fetched {fetched}. Tomorrow "
+                        f"07:00–12:00 is {live.sun_factor(fc_kw, times, ss.kwp) * 100:.0f}% of a clear morning, "
+                        f"{live.morning_cloud(fc):.0f}% cloud. PV = kWp × irradiance ÷ 1000 W/m² × 0.78.")
+        else:
+            fc_kw = sun
+            src_note = ("<b>Forecast:</b> " + ("Open-Meteo could not be reached, so the " if ss.lv_src == "live"
+                                               else "The ") + f"sidebar weather ({ss.weather.lower()}) is used.")
+        who = lambda v: None if v == "None" else v
+        sp = live.Surprises(who(ss.lv_noshow), who(ss.lv_late), ss.lv_late_h, who(ss.lv_early), ss.lv_early_h,
+                            ss.lv_sun)
+        night = live.LiveNight(fleet, sp, batt, base, limit_kw, target, fc_kw, ss.kwp, store, ss.solar_first)
+        st.html(f'<p class="cf-note">{src_note} A driver more than 1 h late is planned without until they plug in. '
+                'From 08:00 the last hour of measured sun corrects the rest of the morning\'s forecast. Only the first '
+                '15 minutes of each plan are carried out, then ChargeFlow measures again and re-plans.</p>')
+        live_clock(night)
+        d, f = night.outcome(night.done), night.outcome(night.fixed)
+        nc = len(night.came)
+        st.html(ui.view_head("How the night ends", "Re-planning every 15 minutes against the 18:00 plan "
+                                                   "followed blindly, with the same surprises."))
+        st.html(ui.strip([
+            ("Ready at departure", f'{d["ready"]}<small>of {nc}</small>', f"18:00 plan blindly: {f['ready']} of {nc}",
+             d["ready"] < nc),
+            ("Time over sanctioned load", ui.fmt_min(d["over_min"]), f"18:00 plan blindly: {ui.fmt_min(f['over_min'])}",
+             d["over_min"] > 0),
+            ("Peak grid import", f'{ui.num("lv_dpk", d["peak_kw"], 1)}<small>kW</small>',
+             f"18:00 plan blindly: {f['peak_kw']:.1f} kW", d["peak_kw"] > limit_kw),
+            ("Grid electricity", f'₹{ui.num("lv_cost", d["grid_night_kwh"] * ss.tariff)}',
+             f"18:00 plan blindly: ₹{f['grid_night_kwh'] * ss.tariff:,.0f}", False),
+        ]), unsafe_allow_javascript=True)
 
 # ---------------------------------------------------------------- 03 supporting analysis
 with sec3_head:

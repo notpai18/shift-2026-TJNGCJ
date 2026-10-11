@@ -268,3 +268,41 @@ def measured_chart(index, total, limit_kw, transition_ms=260):
                                  tickfont=dict(family=MONO, size=11, color=INK_2)),
                       yaxis=_axis_y(" kW", [0, max(max(total), limit_kw) * 1.2]))
     return fig
+
+
+def replan_chart(times, k_now, done_kw, plan_kw, fixed_kw, sun_fc, sun_now, limit_kw, transition_ms=0):
+    """Grid import carried out so far and the plan from now on, against the 18:00 plan followed
+    blindly; solar measured so far and forecast."""
+    fig = go.Figure()
+    night = times >= NIGHT_H
+    idx = np.arange(len(times))
+    x = np.array([to_dt(h + SLOT_H / 2) for h in times])
+    past = night & (idx < k_now)
+    ahead = night & (idx >= k_now)
+    fig.add_trace(go.Scatter(x=x[night], y=sun_fc[night], name="Solar forecast", mode="lines",
+                             line=dict(color="#9A7400", width=1.2, dash="dot"), hovertemplate="%{y:.1f} kW"))
+    if past.any():
+        fig.add_trace(go.Scatter(x=x[past], y=sun_now[past], name="Solar measured", mode="lines",
+                                 line=dict(color=SOLAR, width=1.8), hovertemplate="%{y:.1f} kW"))
+        fig.add_trace(go.Scatter(x=x[past], y=fixed_kw[past], name="18:00 plan followed blindly", mode="lines",
+                                 line=dict(color=GRAPHITE, width=1.4), hovertemplate="%{y:.1f} kW"))
+        fig.add_trace(go.Scatter(x=x[past], y=done_kw[past], name="Grid import with re-planning", mode="lines",
+                                 line=dict(color=COBALT, width=2.4), fill="tozeroy", fillcolor=_rgba(COBALT, .10),
+                                 hovertemplate="%{y:.1f} kW"))
+    if ahead.any() and plan_kw is not None:
+        join = ahead | (idx == k_now - 1) & night
+        y = np.where(idx == k_now - 1, done_kw, plan_kw)
+        fig.add_trace(go.Scatter(x=x[join], y=y[join], name="Plan from now", mode="lines",
+                                 line=dict(color=COBALT, width=1.8, dash="dash"), hovertemplate="%{y:.1f} kW"))
+    fig.add_hline(y=limit_kw, line=dict(color=AMBER, width=1.6))
+    fig.add_annotation(xref="paper", yref="y", x=1, y=limit_kw, xanchor="right", yanchor="bottom", showarrow=False,
+                       text=f"SANCTIONED {limit_kw:.1f} kW", font=dict(family=MONO, size=10.5, color=AMBER_TEXT),
+                       bgcolor="rgba(255,255,255,.9)", borderpad=2, yshift=2)
+    if k_now < len(times):
+        fig.add_vline(x=to_dt(times[k_now]), line=dict(color=INK, width=1))
+        fig.add_annotation(x=to_dt(times[k_now]), yref="paper", y=1, xanchor="left", yanchor="top", showarrow=False,
+                           xshift=6, text=f"NOW {hhmm(times[k_now])}", font=dict(family=MONO, size=10.5, color=INK))
+    top = max(float(np.nanmax(np.r_[done_kw[night], fixed_kw[night], sun_fc[night]])), limit_kw)
+    _base(fig, 420, transition_ms, top=44)
+    fig.update_layout(uirevision="replan", xaxis=_axis_x(), yaxis=_axis_y(" kW", [0, top * 1.2]))
+    return fig
